@@ -1,0 +1,126 @@
+@import "tailwindcss";
+
+@theme {
+  --color-neon-blue: #00f3ff;
+  --color-neon-purple: #bc13fe;
+  --color-space-dark: var(--theme-space-dark);
+  --color-space-light: var(--theme-space-light);
+  --color-glass: var(--theme-glass);
+  --color-slate-100: var(--theme-slate-100);
+  --color-slate-200: var(--theme-slate-200);
+  --color-slate-300: var(--theme-slate-300);
+  --color-slate-400: var(--theme-slate-400);
+  --color-white: var(--theme-white);
+}
+
+:root {
+  --theme-space-dark: #0a0a0f;
+  --theme-space-light: #161623;
+  --theme-glass: rgba(22, 22, 35, 0.7);
+  --theme-slate-100: #f1f5f9;
+  --theme-slate-200: #e2e8f0;
+  --theme-slate-300: #cbd5e1;
+  --theme-slate-400: #94a3b8;
+  --theme-white: #ffffff;
+
+  /* Chart/system tokens used by charts + tooltips */
+  --border-color: rgba(255, 255, 255, 0.12);
+  --text-primary: var(--theme-slate-200);
+  --text-secondary: var(--theme-slate-400);
+  --bg-secondary: rgba(22, 22, 35, 0.92);
+  --accent-color: var(--color-neon-blue);
+}
+
+:root[data-theme="light"] {
+  --theme-space-dark: #e2e8f0;
+  --theme-space-light: #f8fafc;
+  --theme-glass: rgba(255, 255, 255, 0.7);
+  --theme-slate-100: #0f172a;
+  --theme-slate-200: #1e293b;
+  --theme-slate-300: #334155;
+  --theme-slate-400: #475569;
+  --theme-white: #000000;
+
+  --border-color: rgba(15, 23, 42, 0.12);
+  --text-primary: var(--theme-slate-200);
+  --text-secondary: var(--theme-slate-400);
+  --bg-secondary: rgba(248, 250, 252, 0.98);
+  --accent-color: var(--color-neon-purple);
+}
+
+@layer base {
+  body {
+    @apply bg-space-dark text-slate-200 antialiased min-h-screen overflow-x-hidden transition-colors duration-300;
+  }
+}
+
+@layer utilities {
+  .glass-panel {
+    @apply bg-glass backdrop-blur-md border border-white/10 shadow-[0_0_15px_rgba(0,243,255,0.1)];
+  }
+
+  .neon-text-blue {
+    text-shadow: 0 0 10px rgba(0, 243, 255, 0.5);
+    @apply text-neon-blue;
+  }
+
+  .neon-border-blue {
+    box-shadow: 0 0 10px rgba(0, 243, 255, 0.2);
+    @apply border-neon-blue/50;
+  }
+
+  .neon-border-purple {
+    box-shadow: 0 0 10px rgba(188, 19, 254, 0.2);
+    @apply border-neon-purple/50;
+  }
+}
+
+/* Custom scrollbar for dark space theme */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  @apply bg-space-dark;
+}
+::-webkit-scrollbar-thumb {
+  @apply rounded-full;
+  background: color-mix(in oklab, var(--theme-slate-400) 35%, transparent);
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-neon-blue/50;
+}
+
+/* Fix for leaflet popups in dark mode */
+.leaflet-popup-content-wrapper {
+  @apply !bg-space-light !text-slate-200 !border-white/10;
+}
+.leaflet-popup-tip {
+  @apply !bg-space-light !border-white/10;
+}
+
+/* ISS marker: always visible above tiles */
+.iss-div-icon {
+  background: transparent !important;
+  border: none !important;
+}
+.iss-div-icon .iss-glow {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: radial-gradient(circle at center, rgba(0,243,255,0.55), rgba(188,19,254,0.15), transparent 65%);
+  filter: blur(0.2px);
+  box-shadow: 0 0 18px rgba(0,243,255,0.45), 0 0 26px rgba(188,19,254,0.22);
+  transform: scale(1.35);
+}
+.iss-div-icon .iss-core {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  border-radius: 9999px;
+  transform: translate(-50%, -50%);
+  background: rgba(248, 250, 252, 0.95);
+  border: 2px solid rgba(0,243,255,0.85);
+  box-shadow: 0 0 10px rgba(0,243,255,0.5);
+}
