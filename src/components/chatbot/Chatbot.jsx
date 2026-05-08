@@ -8,6 +8,7 @@ export default function Chatbot() {
     messages, 
     isOpen, 
     isTyping, 
+    isFallbackActive,
     messagesEndRef, 
     toggleChat, 
     sendMessage, 
@@ -54,6 +55,11 @@ export default function Chatbot() {
               <div className="flex items-center gap-2">
                 <Bot className="text-neon-purple w-5 h-5" />
                 <h3 className="font-bold text-slate-100 text-sm">Space Station AI</h3>
+                {isFallbackActive && (
+                  <span className="text-[10px] uppercase tracking-widest text-slate-300/80 bg-white/5 border border-white/10 rounded-full px-2 py-1">
+                    local fallback active
+                  </span>
+                )}
               </div>
               <div className="flex gap-2">
                 <button 

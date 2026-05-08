@@ -60,7 +60,7 @@ const localAssistantReply = (userText) => {
 
   // Default: short, dashboard-scoped guidance
   return [
-    `I’m in offline mode, but I can still answer using the dashboard state.`,
+    `I can answer using the dashboard telemetry and news that’s currently loaded.`,
     `- ISS speed: ${Number(ctx.issSpeed || 0).toLocaleString()} km/h`,
     `- ISS location: ${ctx.issLocation}`,
     ctx.headlines.length ? `- Top headline: ${ctx.headlines[0]}` : `- News: not cached`,
@@ -72,10 +72,12 @@ export function useChatbot() {
   const [messages, setMessages] = useState([]);
   const [isOpen, setIsOpen] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
+  const [isFallbackActive, setIsFallbackActive] = useState(false);
   const messagesEndRef = useRef(null);
   const lastSendAtRef = useRef(0);
   const lastFailAtRef = useRef(0);
   const debounceTimerRef = useRef(null);
+  const lastBotTextRef = useRef('');
 
   // Load history
   useEffect(() => {
@@ -120,6 +122,8 @@ export function useChatbot() {
       timestamp: Date.now()
     };
     setMessages([initialMsg]);
+    setIsFallbackActive(false);
+    lastBotTextRef.current = initialMsg.text;
     localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify([initialMsg]));
   };
 
@@ -164,9 +168,13 @@ RULES:
       try {
         // If we just failed very recently, skip external calls and reply locally.
         if (Date.now() - lastFailAtRef.current < 5000) {
+          setIsFallbackActive(true);
           const replyText = localAssistantReply(cleaned);
-          const botMsg = { id: uid(), text: replyText, isUser: false, timestamp: Date.now() };
-          setMessages(prev => [...prev, botMsg]);
+          if (replyText !== lastBotTextRef.current) {
+            lastBotTextRef.current = replyText;
+            const botMsg = { id: uid(), text: replyText, isUser: false, timestamp: Date.now() };
+            setMessages(prev => [...prev, botMsg]);
+          }
           return;
         }
 
@@ -174,13 +182,19 @@ RULES:
         const recentMessages = messages.slice(-6);
         const replyText = await chatWithMistral([...recentMessages, userMsg], systemContext);
 
+        setIsFallbackActive(false);
+        lastBotTextRef.current = replyText;
         const botMsg = { id: uid(), text: replyText, isUser: false, timestamp: Date.now() };
         setMessages(prev => [...prev, botMsg]);
       } catch (error) {
         lastFailAtRef.current = Date.now();
+        setIsFallbackActive(true);
         const fallbackText = localAssistantReply(cleaned);
-        const botMsg = { id: uid(), text: fallbackText, isUser: false, timestamp: Date.now() };
-        setMessages(prev => [...prev, botMsg]);
+        if (fallbackText !== lastBotTextRef.current) {
+          lastBotTextRef.current = fallbackText;
+          const botMsg = { id: uid(), text: fallbackText, isUser: false, timestamp: Date.now() };
+          setMessages(prev => [...prev, botMsg]);
+        }
       } finally {
         setIsTyping(false);
       }
@@ -191,6 +205,7 @@ RULES:
     messages,
     isOpen,
     isTyping,
+    isFallbackActive,
     messagesEndRef,
     toggleChat,
     sendMessage,

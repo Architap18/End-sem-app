@@ -193,6 +193,11 @@ export default function ISSDashboard() {
           <div className="flex flex-col overflow-hidden w-full">
             <span className="text-xs uppercase tracking-wider text-slate-400 font-semibold">Currently Over</span>
             <span className="text-lg font-bold text-slate-100 truncate" title={locationName}>{locationName}</span>
+            {markerPos && (
+              <span className="text-xs font-mono text-slate-400 mt-1">
+                Lat {markerPos[0].toFixed(4)} · Lon {markerPos[1].toFixed(4)}
+              </span>
+            )}
           </div>
         </motion.div>
 
