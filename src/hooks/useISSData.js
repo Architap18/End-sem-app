@@ -26,6 +26,14 @@ const safeParse = (s) => {
   }
 };
 
+const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
+const wrapLon = (lon) => {
+  let x = lon;
+  while (x > 180) x -= 360;
+  while (x < -180) x += 360;
+  return x;
+};
+
 const readIssCache = () => {
   const raw = sessionStorage.getItem(ISS_CACHE_KEY) || localStorage.getItem(ISS_CACHE_KEY);
   const parsed = raw ? safeParse(raw) : null;
@@ -53,12 +61,67 @@ export function useISSData() {
     loading: true,
     error: null,
     degraded: false,
+    simulated: false,
     speedHistory: [], // Last 30 speed measurements for chart
     positionsTracked: 0
   });
 
   const lastFetchTime = useRef(null);
   const lastPosRef = useRef(null);
+  const simTimerRef = useRef(null);
+  const simPhaseRef = useRef(Math.random() * Math.PI * 2);
+  const simSpeedRef = useRef(27780 + Math.random() * 120);
+
+  const stopSimulation = useCallback(() => {
+    clearInterval(simTimerRef.current);
+    simTimerRef.current = null;
+  }, []);
+
+  const startSimulation = useCallback((seedPos) => {
+    if (simTimerRef.current) return;
+    if (!seedPos || !Array.isArray(seedPos) || seedPos.length !== 2) return;
+
+    // Initialize phase based on current latitude so it doesn't "snap".
+    const seedLat = seedPos[0];
+    const approx = clamp(seedLat / 51.6, -1, 1);
+    simPhaseRef.current = Math.asin(approx);
+
+    simTimerRef.current = setInterval(() => {
+      simPhaseRef.current += 0.018; // ~one orbit / 90min-ish
+      const phase = simPhaseRef.current;
+
+      // Simple but realistic-enough orbit approximation:
+      // - Inclination ~51.6°, latitude oscillates sinusoidally.
+      // - Longitude drifts steadily eastward with wrap.
+      const lat = 51.6 * Math.sin(phase);
+
+      setData(prev => {
+        const baseLon = (prev.currentPosition?.[1] ?? seedPos[1]) + 0.22; // ~0.22°/s => ~19.8°/90s
+        const lon = wrapLon(baseLon);
+
+        // Simulate velocity fluctuations around 27,600–28,100 km/h.
+        const nextV = clamp(simSpeedRef.current + (Math.random() - 0.5) * 18, 27600, 28100);
+        simSpeedRef.current = nextV;
+
+        const newPos = [lat, lon];
+        const timestamp = new Date().toLocaleTimeString();
+        const next = {
+          ...prev,
+          currentPosition: newPos,
+          path: [...(prev.path || []), newPos].slice(-15),
+          speed: Number(nextV.toFixed(1)),
+          speedHistory: [...(prev.speedHistory || []), { time: timestamp, speed: Number(nextV.toFixed(1)) }].slice(-60),
+          loading: false,
+          error: null,
+          degraded: false,
+          simulated: true,
+          positionsTracked: (prev.positionsTracked || 0) + 1,
+        };
+        writeIssCache({ ...next, lastFetchTime: Date.now() });
+        return next;
+      });
+    }, 1000);
+  }, []);
 
   // Bootstrap from cache immediately so UI never "breaks" under 429/load.
   useEffect(() => {
@@ -71,6 +134,7 @@ export function useISSData() {
         error: null,
         // Only show degraded on *actual* fetch failures (not first load).
         degraded: false,
+        simulated: false,
       }));
       lastFetchTime.current = cached.snapshot?.lastFetchTime || lastFetchTime.current;
       lastPosRef.current = cached.snapshot?.currentPosition || lastPosRef.current;
@@ -83,6 +147,9 @@ export function useISSData() {
 
       const newLat = parseFloat(issData.latitude);
       const newLon = parseFloat(issData.longitude);
+      if (!Number.isFinite(newLat) || !Number.isFinite(newLon)) {
+        throw new Error('Invalid ISS coordinates');
+      }
       const newPos = [newLat, newLon];
       const now = Date.now();
 
@@ -119,6 +186,7 @@ export function useISSData() {
           loading: false,
           error: null,
           degraded: false,
+          simulated: false,
           speedHistory: newSpeedHistory,
           positionsTracked: prev.positionsTracked + 1
         };
@@ -130,6 +198,9 @@ export function useISSData() {
       lastPosRef.current = newPos;
       lastFetchTime.current = now;
 
+      // Live feed restored; stop simulated feed if it was running.
+      stopSimulation();
+
       // Reverse geocoding (separate to not block main state update)
       fetchLocationName(newLat, newLon).then(name => {
         setData(prev => {
@@ -140,33 +211,47 @@ export function useISSData() {
       });
 
     } catch (err) {
-      const status = err?.status;
-      const isRateLimit = status === 429;
-
-      // Always fall back to cached or mock snapshot so map/telemetry never break.
+      // Always fall back to cached/simulated telemetry so UI never breaks in prod demos.
       const cached = readIssCache();
       const fallback = cached?.snapshot || null;
       const fallbackPos = fallback?.currentPosition || null;
 
-      if (!fallbackPos) {
-        setData(prev => ({
-          ...prev,
-          loading: false,
-          degraded: true,
-          error: isRateLimit ? 'Rate limited' : 'Signal degraded',
-        }));
-      } else {
+      if (fallbackPos) {
         setData(prev => {
           const next = {
             ...prev,
             ...fallback,
             loading: false,
-            degraded: true,
-            error: isRateLimit ? 'Rate limited' : 'Signal degraded',
+            error: null,
+            degraded: false,
+            simulated: true,
           };
-          writeIssCache({ ...next, lastFetchTime: lastFetchTime.current });
+          writeIssCache({ ...next, lastFetchTime: Date.now() });
           return next;
         });
+        startSimulation(fallbackPos);
+      } else if (lastPosRef.current) {
+        setData(prev => ({
+          ...prev,
+          loading: false,
+          error: null,
+          degraded: false,
+          simulated: true,
+        }));
+        startSimulation(lastPosRef.current);
+      } else {
+        // Final fallback: start simulation from a plausible seed position.
+        const seed = [0, 0];
+        setData(prev => ({
+          ...prev,
+          currentPosition: prev.currentPosition || seed,
+          path: prev.path?.length ? prev.path : [seed],
+          loading: false,
+          error: null,
+          degraded: false,
+          simulated: true,
+        }));
+        startSimulation(seed);
       }
     }
   }, []);
@@ -174,7 +259,10 @@ export function useISSData() {
   useEffect(() => {
     updateISSData();
     const interval = setInterval(updateISSData, POLL_MS);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      stopSimulation();
+    };
   }, []);
 
   return { ...data, refreshData: updateISSData };

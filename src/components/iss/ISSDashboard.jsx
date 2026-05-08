@@ -45,6 +45,7 @@ export default function ISSDashboard() {
     locationName, 
     loading, 
     error,
+    simulated,
     refreshData,
     speedHistory,
     positionsTracked
@@ -108,9 +109,16 @@ export default function ISSDashboard() {
   return (
     <div className="glass-panel rounded-2xl p-6 h-full flex flex-col gap-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-xl font-bold flex items-center gap-2 neon-text-blue">
-          <Navigation className="w-6 h-6 text-neon-blue" /> ISS Live Telemetry
-        </h2>
+        <div className="flex items-center gap-3">
+          <h2 className="text-xl font-bold flex items-center gap-2 neon-text-blue">
+            <Navigation className="w-6 h-6 text-neon-blue" /> ISS Live Telemetry
+          </h2>
+          {simulated && (
+            <span className="text-[11px] uppercase tracking-widest text-neon-purple/90 bg-neon-purple/10 border border-neon-purple/20 rounded-full px-3 py-1">
+              Simulated Live Feed
+            </span>
+          )}
+        </div>
         <motion.button 
           whileHover={{ scale: 1.1, rotate: 180 }}
           whileTap={{ scale: 0.9 }}
